@@ -43,7 +43,8 @@ const allowedOrigins = new Set(
     process.env.FRONTEND_URL,
     process.env.CLIENT_URL,
     "http://localhost:5173",
-    "http://127.0.0.1:5173"
+    "http://127.0.0.1:5173",
+    "https://connectin-1-aflv.onrender.com"  // Add your frontend URL
   ].filter(Boolean)
 );
 
