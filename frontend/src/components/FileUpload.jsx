@@ -26,9 +26,6 @@ const FileUpload = ({ currentFolderId, onUploaded }) => {
         setProgress(0);
 
         await api.post("/files/upload", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data"
-          },
           onUploadProgress: (event) => {
             if (!event.total) return;
             setProgress(Math.round((event.loaded / event.total) * 100));

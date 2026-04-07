@@ -7,12 +7,20 @@ if (!S3_REGION || !S3_BUCKET) {
   console.warn("AWS_REGION or AWS_S3_BUCKET is not set. S3 operations will fail until configured.");
 }
 
+const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+
+const credentials =
+  accessKeyId && secretAccessKey
+    ? {
+        accessKeyId,
+        secretAccessKey
+      }
+    : undefined;
+
 const s3Client = new S3Client({
   region: S3_REGION,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ""
-  }
+  ...(credentials ? { credentials } : {})
 });
 
 module.exports = { s3Client, S3_REGION, S3_BUCKET };

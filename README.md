@@ -38,7 +38,7 @@ Full-stack cloud storage web application where all file operations are handled b
 - Folder navigation (breadcrumbs with home icon)
 - Interactive folder panels with rename/delete buttons and toggled creation form
 - File list/grid views with icons, tooltips, and inline actions (preview/download/rename/move/share)
-- Upload area with drag‑drop, icon and progress indicators
+- Upload area with drag-and-drop, icon and progress indicators
 - Preview modal with download option
 
 ## Project Structure
@@ -54,10 +54,11 @@ backend
   server.js
 
 frontend
-  components
-  pages
-  services
-  hooks
+  src
+    components
+    hooks
+    pages
+    services
 ```
 
 ## Backend Routes
@@ -72,7 +73,7 @@ Files
 
 - `POST /files/upload`
 - `GET /files/list`
-- `GET /files/stats`  (dashboard metrics: total files/folders, usage, top‑shared)
+- `GET /files/stats`  (dashboard metrics: total files/folders, usage, top-shared)
 - `GET /files/usage`
 - `GET /files/download/:id`
 - `DELETE /files/delete/:id`
@@ -100,14 +101,16 @@ Copy `backend/.env.example` to `backend/.env` and fill values:
 ```env
 PORT=5000
 MONGO_URI=mongodb://127.0.0.1:27017/cloud_drive
+# Optional (dev only): if Atlas/SRV is blocked/unreachable, fallback to local MongoDB
+# MONGO_URI_FALLBACK=mongodb://127.0.0.1:27017/cloud_drive
 JWT_SECRET=replace-with-strong-secret
 JWT_EXPIRES_IN=7d
 FRONTEND_URL=http://localhost:5173
 CLIENT_URL=http://localhost:5173
 AWS_REGION=ap-south-1
-AWS_ACCESS_KEY_ID=your-access-key
-AWS_SECRET_ACCESS_KEY=your-secret
-AWS_S3_BUCKET=your-bucket
+AWS_ACCESS_KEY_ID=your-aws-access-key-id
+AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
+AWS_S3_BUCKET=your-s3-bucket-name
 ```
 
 ### Frontend (`frontend/.env`)
@@ -119,6 +122,10 @@ VITE_API_BASE_URL=http://localhost:5000
 ```
 
 ## Run Locally
+
+Note (Windows PowerShell): if `npm` fails with "running scripts is disabled", run the same commands in `cmd.exe` or use `npm.cmd` (e.g. `npm.cmd run dev`).
+
+Note (MongoDB Atlas): if your `MONGO_URI` uses `mongodb+srv://` and you get timeouts (IP not whitelisted / network blocked), set `MONGO_URI_FALLBACK` (or change `MONGO_URI`) to a local MongoDB URI for development.
 
 ### 1) Backend
 
@@ -136,8 +143,8 @@ npm install
 npm run dev
 ```
 
-Frontend default URL: `http://localhost:5173`  
-Backend default URL: `http://localhost:5000`
+Frontend URL: `http://localhost:5173`  
+Backend URL: `http://localhost:<PORT>` (from `backend/.env`)
 
 ## Architecture Notes
 

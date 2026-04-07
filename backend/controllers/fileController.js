@@ -1,6 +1,7 @@
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 const mongoose = require("mongoose");
+const { Types } = mongoose;
 const File = require("../models/File");
 const Folder = require("../models/Folder");
 const Share = require("../models/Share");
@@ -16,6 +17,8 @@ const normalizeFolderId = (folderId) => {
   return folderId;
 };
 
+const isObjectId = (id) => id && Types.ObjectId.isValid(id);
+
 const uploadFile = async (req, res) => {
   try {
     if (!req.file) {
@@ -24,6 +27,9 @@ const uploadFile = async (req, res) => {
 
     const folderId = normalizeFolderId(req.body.folderId);
     if (folderId) {
+      if (!isObjectId(folderId)) {
+        return res.status(400).json({ message: "Invalid folderId." });
+      }
       const folderExists = await Folder.exists({ _id: folderId, userId: req.user.id });
       if (!folderExists) {
         return res.status(404).json({ message: "Folder not found." });
@@ -54,13 +60,20 @@ const uploadFile = async (req, res) => {
 const listFiles = async (req, res) => {
   try {
     const { folderId, search } = req.query;
+
+    const normalizedFolderId = normalizeFolderId(folderId);
+    if (normalizedFolderId && !isObjectId(normalizedFolderId)) {
+      return res.status(400).json({ message: "Invalid folderId." });
+    }
+
     const query = {
       userId: req.user.id,
-      folderId: normalizeFolderId(folderId)
+      folderId: normalizedFolderId
     };
 
     if (search && search.trim()) {
-      query.filename = { $regex: search.trim(), $options: "i" };
+      const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      query.filename = { $regex: escaped, $options: "i" };
     }
 
     const files = await File.find(query).sort({ createdAt: -1 });
@@ -138,6 +151,9 @@ const getDashboardStats = async (req, res) => {
 
 const downloadFile = async (req, res) => {
   try {
+    if (!isObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid file id." });
+    }
     const file = await File.findOne({ _id: req.params.id, userId: req.user.id });
     if (!file) {
       return res.status(404).json({ message: "File not found." });
@@ -152,6 +168,9 @@ const downloadFile = async (req, res) => {
 
 const deleteFile = async (req, res) => {
   try {
+    if (!isObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid file id." });
+    }
     const file = await File.findOne({ _id: req.params.id, userId: req.user.id });
     if (!file) {
       return res.status(404).json({ message: "File not found." });
@@ -174,6 +193,10 @@ const renameFile = async (req, res) => {
       return res.status(400).json({ message: "New filename is required." });
     }
 
+    if (!isObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid file id." });
+    }
+
     const file = await File.findOne({ _id: req.params.id, userId: req.user.id });
     if (!file) {
       return res.status(404).json({ message: "File not found." });
@@ -191,6 +214,14 @@ const renameFile = async (req, res) => {
 const moveFile = async (req, res) => {
   try {
     const destinationFolderId = normalizeFolderId(req.body.folderId);
+    if (destinationFolderId && !isObjectId(destinationFolderId)) {
+      return res.status(400).json({ message: "Invalid destination folder id." });
+    }
+
+    if (!isObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid file id." });
+    }
+
     const file = await File.findOne({ _id: req.params.id, userId: req.user.id });
     if (!file) {
       return res.status(404).json({ message: "File not found." });
@@ -214,6 +245,10 @@ const moveFile = async (req, res) => {
 
 const shareFile = async (req, res) => {
   try {
+    if (!isObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid file id." });
+    }
+
     const file = await File.findOne({ _id: req.params.id, userId: req.user.id });
     if (!file) {
       return res.status(404).json({ message: "File not found." });
@@ -227,8 +262,12 @@ const shareFile = async (req, res) => {
       if (Number.isNaN(expiresDate.getTime())) {
         return res.status(400).json({ message: "Invalid expiresAt value." });
       }
-    } else if (expiresInHours && Number(expiresInHours) > 0) {
-      expiresDate = new Date(Date.now() + Number(expiresInHours) * 60 * 60 * 1000);
+    } else if (expiresInHours != null) {
+      const hours = Number(expiresInHours);
+      if (Number.isNaN(hours) || hours <= 0) {
+        return res.status(400).json({ message: "expiresInHours must be greater than 0." });
+      }
+      expiresDate = new Date(Date.now() + hours * 60 * 60 * 1000);
     }
 
     const shareToken = uuidv4().replaceAll("-", "");
@@ -251,6 +290,10 @@ const shareFile = async (req, res) => {
 
 const getFileMetadata = async (req, res) => {
   try {
+    if (!isObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid file id." });
+    }
+
     const file = await File.findOne({ _id: req.params.id, userId: req.user.id })
       .populate("folderId", "name")
       .lean();
@@ -266,6 +309,9 @@ const getFileMetadata = async (req, res) => {
 
 const previewFile = async (req, res) => {
   try {
+    if (!isObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid file id." });
+    }
     const file = await File.findOne({ _id: req.params.id, userId: req.user.id });
     if (!file) {
       return res.status(404).json({ message: "File not found." });

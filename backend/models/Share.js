@@ -23,4 +23,7 @@ const shareSchema = new mongoose.Schema({
   }
 });
 
+// automatically delete expired share tokens
+shareSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
 module.exports = mongoose.model("Share", shareSchema);

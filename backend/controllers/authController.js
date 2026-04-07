@@ -19,7 +19,18 @@ const register = async (req, res) => {
       return res.status(400).json({ message: "Email and password are required." });
     }
 
-    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+    const passwordValue = String(password);
+    const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+    if (!emailRegex.test(normalizedEmail)) {
+      return res.status(400).json({ message: "Invalid email address." });
+    }
+    if (passwordValue.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters." });
+    }
+
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
       return res.status(409).json({ message: "User already exists." });
     }
@@ -39,7 +50,8 @@ const register = async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to register user.", error: error.message });
+    console.error("register error", error);
+    return res.status(500).json({ message: "Failed to register user." });
   }
 };
 
@@ -50,7 +62,16 @@ const login = async (req, res) => {
       return res.status(400).json({ message: "Email and password are required." });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+    const passwordValue = String(password);
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail)) {
+      return res.status(400).json({ message: "Invalid email address." });
+    }
+    if (passwordValue.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters." });
+    }
+
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials." });
     }
@@ -70,7 +91,8 @@ const login = async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to login.", error: error.message });
+    console.error("login error", error);
+    return res.status(500).json({ message: "Failed to login." });
   }
 };
 

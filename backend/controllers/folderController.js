@@ -1,5 +1,10 @@
+const mongoose = require("mongoose");
 const Folder = require("../models/Folder");
 const File = require("../models/File");
+
+const { Types } = mongoose;
+
+const isObjectId = (id) => id && Types.ObjectId.isValid(id);
 
 const normalizeFolderId = (folderId) => {
   if (!folderId || folderId === "root") return null;
@@ -16,6 +21,9 @@ const createFolder = async (req, res) => {
     }
 
     if (normalizedParentId) {
+      if (!isObjectId(normalizedParentId)) {
+        return res.status(400).json({ message: "Invalid parentFolderId." });
+      }
       const parent = await Folder.findOne({ _id: normalizedParentId, userId: req.user.id });
       if (!parent) {
         return res.status(404).json({ message: "Parent folder not found." });
@@ -43,7 +51,11 @@ const listFolders = async (req, res) => {
     let query = { userId: req.user.id };
 
     if (all !== "true") {
-      query.parentFolderId = normalizeFolderId(parentFolderId);
+      const normalizedParentId = normalizeFolderId(parentFolderId);
+      if (normalizedParentId && !isObjectId(normalizedParentId)) {
+        return res.status(400).json({ message: "Invalid parentFolderId." });
+      }
+      query.parentFolderId = normalizedParentId;
     }
 
     const folders = await Folder.find(query).sort({ name: 1, createdAt: -1 });
@@ -55,6 +67,9 @@ const listFolders = async (req, res) => {
 
 const deleteFolder = async (req, res) => {
   try {
+    if (!isObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid folder id." });
+    }
     const folder = await Folder.findOne({ _id: req.params.id, userId: req.user.id });
     if (!folder) {
       return res.status(404).json({ message: "Folder not found." });
@@ -84,6 +99,10 @@ const renameFolder = async (req, res) => {
     const { name } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ message: "New folder name is required." });
+    }
+
+    if (!isObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid folder id." });
     }
 
     const folder = await Folder.findOne({ _id: req.params.id, userId: req.user.id });
