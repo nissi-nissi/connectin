@@ -76,6 +76,16 @@ const authRateLimiter = rateLimit({
 
 app.use("/auth", authRateLimiter);
 
+// Root endpoint
+app.get("/", (req, res) => {
+  res.status(200).json({ 
+    message: "Cloud Drive API",
+    status: "running",
+    version: "1.0.0"
+  });
+});
+
+// Health check endpoint
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
