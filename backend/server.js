@@ -11,6 +11,7 @@ const fileRoutes = require("./routes/fileRoutes");
 const folderRoutes = require("./routes/folderRoutes");
 
 const app = express();
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 5000;
 
 const requiredEnv = ["MONGO_URI", "JWT_SECRET"];
@@ -35,8 +36,6 @@ if (missingAwsEnv.length) {
     "- file operations will fail until configured."
   );
 }
-
-connectDB();
 
 const allowedOrigins = new Set(
   [
@@ -119,6 +118,16 @@ app.use((err, req, res, next) => {
   return res.status(500).json({ message: "Unexpected server error." });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const startServer = async () => {
+  try {
+    await connectDB();
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  }
+};
+
+startServer();
