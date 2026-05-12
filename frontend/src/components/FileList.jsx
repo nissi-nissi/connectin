@@ -1,4 +1,19 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowDownTrayIcon,
+  DocumentIcon,
+  EllipsisVerticalIcon,
+  EyeIcon,
+  LinkIcon,
+  MusicalNoteIcon,
+  PencilSquareIcon,
+  PhotoIcon,
+  Squares2X2Icon,
+  TableCellsIcon,
+  TrashIcon,
+  VideoCameraIcon
+} from "@heroicons/react/24/outline";
+import { motion } from "framer-motion";
 
 const formatBytes = (bytes) => {
   if (bytes === 0) return "0 B";
@@ -10,12 +25,30 @@ const formatBytes = (bytes) => {
 };
 
 const fileIcon = (mimeType) => {
-  if (mimeType?.startsWith("image/")) return "IMG";
-  if (mimeType?.startsWith("video/")) return "VID";
-  if (mimeType?.startsWith("audio/")) return "AUD";
-  if (mimeType === "application/pdf") return "PDF";
-  return "DOC";
+  if (mimeType?.startsWith("image/")) return PhotoIcon;
+  if (mimeType?.startsWith("video/")) return VideoCameraIcon;
+  if (mimeType?.startsWith("audio/")) return MusicalNoteIcon;
+  return DocumentIcon;
 };
+
+const Modal = ({ title, children, onClose }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+    <div
+      className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
+      onClick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <h4 className="text-base font-semibold text-slate-900">{title}</h4>
+        <button type="button" onClick={onClose} className="text-xs text-slate-500 hover:text-slate-700">
+          Esc
+        </button>
+      </div>
+      {children}
+    </div>
+  </div>
+);
 
 const FileList = ({
   files,
@@ -31,19 +64,41 @@ const FileList = ({
 }) => {
   const [moveTargets, setMoveTargets] = useState({});
   const [shareLinks, setShareLinks] = useState({});
+  const [contextMenu, setContextMenu] = useState(null);
+  const [renameFile, setRenameFile] = useState(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [shareFile, setShareFile] = useState(null);
+  const [shareExpiration, setShareExpiration] = useState("24");
 
-  const openRenamePrompt = async (file) => {
-    const nextName = window.prompt("Enter new filename:", file.filename);
-    if (nextName && nextName.trim() && nextName.trim() !== file.filename) {
-      await onRename(file._id, nextName.trim());
-    }
-  };
+  useEffect(() => {
+    const close = () => setContextMenu(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, []);
 
-  const doShare = async (fileId) => {
-    const link = await onShare(fileId);
+  const recentFiles = useMemo(
+    () => [...files].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5),
+    [files]
+  );
+
+  const doShare = async (fileId, expiresInHours) => {
+    const link = await onShare(fileId, expiresInHours);
     if (link) {
       setShareLinks((prev) => ({ ...prev, [fileId]: link }));
+      return link;
     }
+    return null;
+  };
+
+  const openRenameDialog = (file) => {
+    setRenameFile(file);
+    setRenameValue(file.filename);
+    setContextMenu(null);
+  };
+
+  const handleContextMenu = (event, file) => {
+    event.preventDefault();
+    setContextMenu({ file, x: event.clientX, y: event.clientY });
   };
 
   const moveFile = async (fileId, folderId) => {
@@ -51,20 +106,17 @@ const FileList = ({
   };
 
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-base font-semibold text-slate-900">Files</h3>
-        <div className="rounded-lg bg-slate-100 p-1 text-xs flex">
+    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <h3 className="text-base font-semibold text-slate-900">My Files</h3>
+        <div className="flex rounded-lg bg-slate-100 p-1 text-xs">
           <button
             type="button"
             title="List view"
             className={`rounded px-2 py-1 ${viewMode === "list" ? "bg-white shadow-sm" : ""}`}
             onClick={() => setViewMode("list")}
           >
-            {/* list icon */}
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
+            <TableCellsIcon className="h-4 w-4" />
           </button>
           <button
             type="button"
@@ -72,268 +124,240 @@ const FileList = ({
             className={`ml-1 rounded px-2 py-1 ${viewMode === "grid" ? "bg-white shadow-sm" : ""}`}
             onClick={() => setViewMode("grid")}
           >
-            {/* grid icon */}
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h6v6H4V4zm10 0h6v6h-6V4zm0 10h6v6h-6v-6zm-10 0h6v6H4v-6z" />
-            </svg>
+            <Squares2X2Icon className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      {!files.length ? <p className="text-sm text-slate-500">No files found.</p> : null}
+      {!files.length ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+          <DocumentIcon className="mx-auto h-10 w-10 text-slate-400" />
+          <p className="mt-2 text-sm text-slate-600">No files yet. Upload your first document.</p>
+        </div>
+      ) : null}
 
       {viewMode === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {files.map((file) => (
-            <div key={file._id} className="rounded-xl border border-slate-200 p-3">
-              <div className="mb-3 flex items-center gap-3">
-                <div className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
-                  {fileIcon(file.mimeType)}
+          {files.map((file) => {
+            const Icon = fileIcon(file.mimeType);
+            return (
+              <motion.div
+                key={file._id}
+                whileHover={{ y: -3 }}
+                onContextMenu={(event) => handleContextMenu(event, file)}
+                className="rounded-xl border border-slate-200 p-3 transition-shadow hover:shadow-md"
+              >
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Icon className="h-5 w-5 shrink-0 text-brand-600" />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-800">{file.filename}</p>
+                      <p className="text-xs text-slate-500">{formatBytes(file.fileSize)}</p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={(e) => handleContextMenu(e, file)} className="text-slate-500">
+                    <EllipsisVerticalIcon className="h-4 w-4" />
+                  </button>
                 </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-800">{file.filename}</p>
-                  <p className="text-xs text-slate-500">{formatBytes(file.fileSize)}</p>
-                </div>
-              </div>
-              <div className="space-y-2">
                 <div className="flex flex-wrap gap-2 text-xs">
-                  <button
-                    type="button"
-                    title="Preview file"
-                    className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200 flex items-center gap-1"
-                    onClick={() => onPreview(file._id)}
-                  >
-                    {/* eye icon */}
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
+                  <button type="button" className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200" onClick={() => onPreview(file._id)}>
+                    <EyeIcon className="h-4 w-4" />
                   </button>
-                  <button
-                    type="button"
-                    title="Download file"
-                    className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200 flex items-center gap-1"
-                    onClick={() => onDownload(file._id)}
-                  >
-                    {/* download icon */}
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 10l5 5 5-5M12 15V3" />
-                    </svg>
+                  <button type="button" className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200" onClick={() => onDownload(file._id)}>
+                    <ArrowDownTrayIcon className="h-4 w-4" />
                   </button>
-                  <button
-                    type="button"
-                    title="Rename file"
-                    className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200 flex items-center gap-1"
-                    onClick={() => openRenamePrompt(file)}
-                  >
-                    {/* pencil icon */}
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 11l6 6m2-10l-6 6" />
-                    </svg>
+                  <button type="button" className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200" onClick={() => openRenameDialog(file)}>
+                    <PencilSquareIcon className="h-4 w-4" />
                   </button>
-                  <button
-                    type="button"
-                    title="Delete file"
-                    className="rounded bg-red-100 px-2 py-1 text-red-700 hover:bg-red-200 flex items-center gap-1"
-                    onClick={() => onDelete(file._id)}
-                  >
-                    {/* trash icon */}
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-1 12a2 2 0 01-2 2H8a2 2 0 01-2-2L5 7m5-4h4m-4 0a1 1 0 011-1h2a1 1 0 011 1m-4 0v4" />
-                    </svg>
+                  <button type="button" className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200" onClick={() => setShareFile(file)}>
+                    <LinkIcon className="h-4 w-4" />
+                  </button>
+                  <button type="button" className="rounded bg-red-100 px-2 py-1 text-red-700 hover:bg-red-200" onClick={() => onDelete(file._id)}>
+                    <TrashIcon className="h-4 w-4" />
                   </button>
                 </div>
-
-                <div className="flex gap-2 items-center">
-                  <label htmlFor={`move-${file._id}`} className="sr-only">
-                    Move to folder
-                  </label>
-                  <select
-                    id={`move-${file._id}`}
-                    className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs"
-                    value={moveTargets[file._id] ?? (file.folderId || "root")}
-                    onChange={(e) =>
-                      setMoveTargets((prev) => ({
-                        ...prev,
-                        [file._id]: e.target.value
-                      }))
-                    }
-                  >
-                    <option value="root">Root</option>
-                    {allFolders.map((folder) => (
-                      <option key={folder._id} value={folder._id}>
-                        {folder.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    title="Move file"
-                    className="rounded bg-brand-600 px-2 py-1 text-xs text-white hover:bg-brand-700 flex items-center gap-1"
-                    onClick={() => moveFile(file._id, moveTargets[file._id] ?? (file.folderId || "root"))}
-                  >
-                    {/* folder arrow icon */}
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2 5h10l-2-5h-4" />
-                    </svg>
-                    Move
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  title="Generate share link"
-                  className="w-full rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200 flex items-center justify-center gap-1"
-                  onClick={() => doShare(file._id)}
-                >
-                    {/* link icon */}
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 5.656m1.414-1.414l5.656-5.656m0 0a4 4 0 115.656 5.656m-1.414-1.414l-5.656 5.656" />
-                    </svg>
-                    Share
-                </button>
-
-                {shareLinks[file._id] ? (
-                  <a
-                    className="block truncate text-xs text-brand-700 hover:underline"
-                    href={shareLinks[file._id]}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {shareLinks[file._id]}
-                  </a>
-                ) : null}
-              </div>
-            </div>
-          ))}
+              </motion.div>
+            );
+          })}
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b text-left text-xs uppercase text-slate-500">
-                <th className="py-2 pr-4">Name</th>
-                <th className="py-2 pr-4">Size</th>
-                <th className="py-2 pr-4">Type</th>
-                <th className="py-2 pr-4">Created</th>
-                <th className="py-2 pr-4">Actions</th>
+              <tr className="border-b text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="py-3 pr-4">Name</th>
+                <th className="py-3 pr-4">Size</th>
+                <th className="py-3 pr-4">Type</th>
+                <th className="py-3 pr-4">Created</th>
+                <th className="py-3 pr-4">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {files.map((file) => (
-                <tr key={file._id} className="border-b border-slate-100">
-                  <td className="py-2 pr-4">
-                    <div className="flex items-center gap-2">
-                      <span className="rounded bg-slate-100 px-2 py-1 text-xs font-semibold">
-                        {fileIcon(file.mimeType)}
-                      </span>
-                      <span className="max-w-[220px] truncate">{file.filename}</span>
-                    </div>
-                  </td>
-                  <td className="py-2 pr-4">{formatBytes(file.fileSize)}</td>
-                  <td className="py-2 pr-4">{file.mimeType}</td>
-                  <td className="py-2 pr-4">{new Date(file.createdAt).toLocaleString()}</td>
-                  <td className="py-2 pr-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        title="Preview"
-                        className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200 flex items-center gap-1"
-                        onClick={() => onPreview(file._id)}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        title="Download"
-                        className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200 flex items-center gap-1"
-                        onClick={() => onDownload(file._id)}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 10l5 5 5-5M12 15V3" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        title="Rename"
-                        className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200 flex items_center gap-1"
-                        onClick={() => openRenamePrompt(file)}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 11l6 6m2-10l-6 6" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        title="Delete"
-                        className="rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 flex items-center gap-1"
-                        onClick={() => onDelete(file._id)}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-1 12a2 2 0 01-2 2H8a2 2 0 01-2-2L5 7m5-4h4m-4 0a1 1 0 011-1h2a1 1 0 011 1m-4 0v4" />
-                        </svg>
-                      </button>
-                      <select
-                        title="Move to folder"
-                        className="rounded border border-slate-300 px-2 py-1 text-xs"
-                        value={moveTargets[file._id] ?? (file.folderId || "root")}
-                        onChange={(e) =>
-                          setMoveTargets((prev) => ({
-                            ...prev,
-                            [file._id]: e.target.value
-                          }))
-                        }
-                      >
-                        <option value="root">Root</option>
-                        {allFolders.map((folder) => (
-                          <option key={folder._id} value={folder._id}>
-                            {folder.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        title="Move"
-                        className="rounded bg-brand-600 px-2 py-1 text-xs text-white hover:bg-brand-700 flex items-center gap-1"
-                        onClick={() => moveFile(file._id, moveTargets[file._id] ?? (file.folderId || "root"))}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2 5h10l-2-5h-4" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        title="Share"
-                        className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200 flex items-center gap-1"
-                        onClick={() => doShare(file._id)}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 5.656m1.414-1.414l5.656-5.656m0 0a4 4 0 115.656 5.656m-1.414-1.414l-5.656 5.656" />
-                        </svg>
-                      </button>
-                    </div>
-                    {shareLinks[file._id] ? (
-                      <a
-                        className="mt-1 block max-w-[260px] truncate text-xs text-brand-700 hover:underline"
-                        href={shareLinks[file._id]}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {shareLinks[file._id]}
-                      </a>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
+              {files.map((file) => {
+                const Icon = fileIcon(file.mimeType);
+                return (
+                  <tr
+                    key={file._id}
+                    onContextMenu={(event) => handleContextMenu(event, file)}
+                    className="border-b border-slate-100 hover:bg-slate-50"
+                  >
+                    <td className="py-3 pr-4">
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4 text-brand-600" />
+                        <span className="max-w-[220px] truncate">{file.filename}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 pr-4">{formatBytes(file.fileSize)}</td>
+                    <td className="py-3 pr-4">{file.mimeType}</td>
+                    <td className="py-3 pr-4">{new Date(file.createdAt).toLocaleString()}</td>
+                    <td className="py-3 pr-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button type="button" className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200" onClick={() => onPreview(file._id)}>
+                          <EyeIcon className="h-4 w-4" />
+                        </button>
+                        <button type="button" className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200" onClick={() => onDownload(file._id)}>
+                          <ArrowDownTrayIcon className="h-4 w-4" />
+                        </button>
+                        <button type="button" className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200" onClick={() => openRenameDialog(file)}>
+                          <PencilSquareIcon className="h-4 w-4" />
+                        </button>
+                        <button type="button" className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200" onClick={() => setShareFile(file)}>
+                          <LinkIcon className="h-4 w-4" />
+                        </button>
+                        <select
+                          className="rounded border border-slate-300 px-2 py-1 text-xs"
+                          value={moveTargets[file._id] ?? (file.folderId || "root")}
+                          onChange={(e) =>
+                            setMoveTargets((prev) => ({
+                              ...prev,
+                              [file._id]: e.target.value
+                            }))
+                          }
+                        >
+                          <option value="root">Root</option>
+                          {allFolders.map((folder) => (
+                            <option key={folder._id} value={folder._id}>
+                              {folder.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="rounded bg-brand-600 px-2 py-1 text-xs text-white hover:bg-brand-700"
+                          onClick={() => moveFile(file._id, moveTargets[file._id] ?? (file.folderId || "root"))}
+                        >
+                          Move
+                        </button>
+                        <button type="button" className="rounded bg-red-100 px-2 py-1 text-red-700 hover:bg-red-200" onClick={() => onDelete(file._id)}>
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {shareLinks[file._id] ? (
+                        <a className="mt-1 block max-w-[260px] truncate text-xs text-brand-700 hover:underline" href={shareLinks[file._id]} target="_blank" rel="noreferrer">
+                          {shareLinks[file._id]}
+                        </a>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
+
+      {recentFiles.length ? (
+        <div className="rounded-xl bg-slate-50 p-3">
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Recent activity</h4>
+          <ul className="space-y-1 text-xs text-slate-600">
+            {recentFiles.map((file) => (
+              <li key={`activity-${file._id}`} className="flex justify-between gap-2">
+                <span className="truncate">{file.filename}</span>
+                <span>{new Date(file.createdAt).toLocaleDateString()}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {contextMenu ? (
+        <div className="fixed z-50 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg" style={{ top: contextMenu.y, left: contextMenu.x }}>
+          <button type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-100" onClick={() => onMove(contextMenu.file._id, null)}>
+            Move to Root
+          </button>
+          <button type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-100" onClick={() => openRenameDialog(contextMenu.file)}>
+            Rename
+          </button>
+          <button type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-100" onClick={() => setShareFile(contextMenu.file)}>
+            Share
+          </button>
+          <button type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-red-600 hover:bg-red-50" onClick={() => onDelete(contextMenu.file._id)}>
+            Delete
+          </button>
+        </div>
+      ) : null}
+
+      {renameFile ? (
+        <Modal title="Rename file" onClose={() => setRenameFile(null)}>
+          <p className="mb-2 text-xs text-slate-500">Shortcut: Enter to save</p>
+          <input
+            autoFocus
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={async (e) => {
+              if (e.key === "Enter" && renameValue.trim()) {
+                await onRename(renameFile._id, renameValue.trim());
+                setRenameFile(null);
+              }
+            }}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-600"
+          />
+          <div className="mt-3 flex justify-end gap-2">
+            <button type="button" className="rounded-lg bg-slate-100 px-3 py-2 text-sm" onClick={() => setRenameFile(null)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="rounded-lg bg-brand-600 px-3 py-2 text-sm text-white"
+              onClick={async () => {
+                if (!renameValue.trim()) return;
+                await onRename(renameFile._id, renameValue.trim());
+                setRenameFile(null);
+              }}
+            >
+              Save
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {shareFile ? (
+        <Modal title="Share file" onClose={() => setShareFile(null)}>
+          <p className="mb-2 text-xs text-slate-500">Set expiration in hours (optional)</p>
+          <input
+            type="number"
+            min="1"
+            value={shareExpiration}
+            onChange={(e) => setShareExpiration(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-600"
+          />
+          <div className="mt-3 flex justify-end gap-2">
+            <button type="button" className="rounded-lg bg-slate-100 px-3 py-2 text-sm" onClick={() => setShareFile(null)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="rounded-lg bg-brand-600 px-3 py-2 text-sm text-white"
+              onClick={async () => {
+                await doShare(shareFile._id, Number(shareExpiration) || undefined);
+                setShareFile(null);
+              }}
+            >
+              Create Link
+            </button>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   );
 };

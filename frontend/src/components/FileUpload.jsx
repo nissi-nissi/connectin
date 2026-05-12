@@ -1,18 +1,28 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowUpTrayIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
+import { motion } from "framer-motion";
 import api from "../services/api";
 
-const FileUpload = ({ currentFolderId, onUploaded }) => {
+const FileUpload = ({ currentFolderId, onUploaded, onError, browseSignal }) => {
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentFileName, setCurrentFileName] = useState("");
+  const [batchCount, setBatchCount] = useState(0);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (browseSignal) {
+      inputRef.current?.click();
+    }
+  }, [browseSignal]);
 
   const uploadFiles = async (files) => {
     if (!files?.length) return;
     setUploading(true);
     setError("");
+    setBatchCount(files.length);
 
     try {
       for (const file of files) {
@@ -37,12 +47,15 @@ const FileUpload = ({ currentFolderId, onUploaded }) => {
       setProgress(100);
       onUploaded();
     } catch (err) {
-      setError(err.response?.data?.message || "Upload failed.");
+      const message = err.response?.data?.message || "Upload failed.";
+      setError(message);
+      onError?.(message);
     } finally {
       setTimeout(() => {
         setUploading(false);
         setProgress(0);
-      }, 200);
+        setBatchCount(0);
+      }, 220);
     }
   };
 
@@ -52,13 +65,10 @@ const FileUpload = ({ currentFolderId, onUploaded }) => {
     uploadFiles([...event.dataTransfer.files]);
   };
 
-  const onInputChange = (event) => {
-    uploadFiles([...event.target.files]);
-  };
-
   return (
     <div className="space-y-3">
-      <div
+      <motion.div
+        whileHover={{ scale: 1.005 }}
         onDragEnter={(e) => {
           e.preventDefault();
           setDragging(true);
@@ -69,42 +79,53 @@ const FileUpload = ({ currentFolderId, onUploaded }) => {
           setDragging(false);
         }}
         onDrop={onDrop}
-        className={`rounded-xl border-2 border-dashed p-6 text-center transition ${
-          dragging ? "border-brand-600 bg-brand-50" : "border-slate-300 bg-white"
+        className={`rounded-2xl border-2 border-dashed p-7 text-center transition-all duration-300 ${
+          dragging
+            ? "border-brand-600 bg-gradient-to-r from-brand-50 to-sky-50 shadow-sm"
+            : "border-slate-300 bg-white"
         }`}
       >
         <div className="flex flex-col items-center justify-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16v-4m0 0l-3 3m3-3l3 3m4-3v4m0 0l3-3m-3 3l-3-3M3 12h18" />
-          </svg>
+          <CloudArrowUpIcon className="h-10 w-10 text-brand-600" />
           <p className="text-sm text-slate-600">
-            Drag & drop files here, or
+            Drop files here or{" "}
             <button
               type="button"
               className="font-semibold text-brand-700 hover:underline"
               onClick={() => inputRef.current?.click()}
             >
-              browse
+              choose from device
             </button>
           </p>
+          <p className="text-xs text-slate-500">Batch upload enabled • Max size: 100 MB per file</p>
         </div>
-        <p className="mt-1 text-xs text-slate-500">Max size: 100 MB per file</p>
-        <input ref={inputRef} type="file" multiple className="hidden" onChange={onInputChange} />
-      </div>
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => uploadFiles([...e.target.files])}
+        />
+      </motion.div>
 
       {uploading ? (
-        <div className="rounded-lg bg-white p-3 shadow-sm">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+        >
           <div className="mb-2 flex items-center justify-between text-xs text-slate-600">
             <span className="truncate">{currentFileName || "Uploading..."}</span>
             <span>{progress}%</span>
           </div>
           <div className="h-2 rounded-full bg-slate-200">
-            <div
-              className="h-2 rounded-full bg-brand-600 transition-all"
-              style={{ width: `${progress}%` }}
-            />
+            <div className="h-2 rounded-full bg-brand-600 transition-all" style={{ width: `${progress}%` }} />
           </div>
-        </div>
+          <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+            <span>{batchCount > 1 ? `${batchCount} files in queue` : "Single file upload"}</span>
+            <ArrowUpTrayIcon className="h-4 w-4" />
+          </div>
+        </motion.div>
       ) : null}
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
